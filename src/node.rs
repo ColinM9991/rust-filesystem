@@ -12,7 +12,7 @@ pub struct Node {
     pub name: String,
     pub node_type: NodeType,
 
-    pub parent: Option<WeakNodeRef>,
+    parent: Option<WeakNodeRef>,
 }
 
 impl Node {
@@ -36,6 +36,21 @@ impl Node {
 
     pub fn is_directory(&self) -> bool {
         matches!(self.node_type, NodeType::Directory { .. })
+    }
+
+    pub fn get_children(&self) -> Option<&Vec<NodeRef>> {
+        match &self.node_type {
+            NodeType::Directory { children } => Some(children.as_ref()),
+            NodeType::File { .. } => None,
+        }
+    }
+
+    pub fn get_parent(&self) -> Option<NodeRef> {
+        self.parent.as_ref().and_then(|t| t.upgrade())
+    }
+
+    pub fn set_parent(&mut self, parent: &NodeRef) {
+        self.parent = Some(Rc::downgrade(parent));
     }
 
     pub fn get_size(&self) -> u64 {

@@ -62,11 +62,7 @@ impl FileSystem {
                 .as_ref()
                 .and_then(|t| t.upgrade())
                 .ok_or_else(|| "Already at root directory".to_string())?,
-            dir => {
-                let child = self.find_child(dir);
-
-                child.ok_or_else(|| "No directory found")?
-            }
+            dir => self.find_child(dir).ok_or_else(|| "No directory found")?,
         };
 
         Ok(current)
@@ -74,12 +70,10 @@ impl FileSystem {
 
     fn find_child(&self, name: &str) -> Option<NodeRef> {
         if let NodeType::Directory { children } = &self.current_dir.borrow().node_type {
-            let child = children
+            children
                 .iter()
                 .find(|&e| e.borrow().name == name)
-                .map(|e| e.clone());
-
-            child
+                .map(|e| Rc::clone(e))
         } else {
             None
         }

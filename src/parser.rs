@@ -1,6 +1,4 @@
-use crate::{
-    filesystem::FileSystem,
-};
+use crate::filesystem::FileSystem;
 
 pub fn parse(input: &str) -> Result<FileSystem, String> {
     let mut file_system = FileSystem::new();
@@ -8,20 +6,18 @@ pub fn parse(input: &str) -> Result<FileSystem, String> {
     let lines = input
         .trim()
         .lines()
-        .skip(2)
         .map(|line| line.trim().split_whitespace().collect::<Vec<_>>());
 
     for line in lines {
         match line[..] {
-            ["$", "cd", arg] => match arg {
-                val => file_system.change_dir(val)?,
-            },
+            ["$", "cd", arg] => file_system.change_dir(arg)?,
             ["$", "ls"] => continue,
             ["dir", name] => {
                 file_system.create_directory(name);
             }
             [size, name] => {
-                file_system.create_file(name, size.parse::<u64>().unwrap());
+                let size = size.parse::<u64>().map_err(|e| "Invalid size specified")?;
+                file_system.create_file(name, size);
             }
             _ => continue,
         }

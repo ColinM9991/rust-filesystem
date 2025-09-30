@@ -1,7 +1,7 @@
 use crate::node::{Node, NodeRef, NodeType};
 use std::rc::Rc;
 
-struct FileSystem {
+pub struct FileSystem {
     root: NodeRef,
     current_dir: NodeRef,
 }
@@ -16,18 +16,30 @@ impl FileSystem {
         }
     }
 
-    pub fn create_directory(&self, parent: &NodeRef, name: &str) -> NodeRef {
+    pub fn create_directory(&self, name: &str) -> NodeRef {
         let directory = Node::new_directory(name);
-        self.add_child(parent, &directory);
+        self.add_child(&self.current_dir, &directory);
 
         directory
     }
 
-    pub fn create_file(&self, parent: &NodeRef, name: &str, size: u64) -> NodeRef {
+    pub fn create_file(&self, name: &str, size: u64) -> NodeRef {
         let file = Node::new_file(name, size);
-        self.add_child(parent, &file);
+        self.add_child(&self.current_dir, &file);
 
         file
+    }
+
+    pub fn change_dir(&mut self, name: &str) -> Result<(), String> {
+        let target = self.resolve_path(name)?;
+
+        if !target.borrow().is_directory() {
+            return Err("Target is not a directory".to_string());
+        }
+
+        self.current_dir = target;
+
+        Ok(())
     }
 
     fn add_child(&self, parent: &NodeRef, child: &NodeRef) {
@@ -38,18 +50,6 @@ impl FileSystem {
         } else {
             panic!("files cannot have children")
         }
-    }
-
-    fn change_dir(&mut self, name: &str) -> Result<(), String> {
-        let target = self.resolve_path(name)?;
-
-        if !target.borrow().is_directory() {
-            return Err("Target is not a directory".to_string());
-        }
-
-        self.current_dir = target;
-
-        Ok(())
     }
 
     fn resolve_path(&self, path: &str) -> Result<NodeRef, String> {
@@ -84,6 +84,10 @@ impl FileSystem {
             None
         }
     }
+
+    pub fn get_size(&self) -> u64 {
+        self.root.borrow().get_size()
+    }
 }
 
 #[cfg(test)]
@@ -100,7 +104,7 @@ mod tests {
     #[test]
     fn change_dir_valid_directory() {
         let mut fs = FileSystem::new();
-        let home = fs.create_directory(&fs.root, "home");
+        let home = fs.create_directory("home");
 
         let res = fs.change_dir(&home.borrow().name);
         assert!(res.is_ok());
@@ -110,13 +114,13 @@ mod tests {
     #[test]
     fn change_dir_invalid_file() {
         let mut fs = FileSystem::new();
-        let home = fs.create_directory(&fs.root, "home");
-        let bashrc = fs.create_file(&home, ".bashrc", 10);
 
+        let home = fs.create_directory("home");
         let res = fs.change_dir(&home.borrow().name);
         assert!(res.is_ok());
         assert!(Rc::ptr_eq(&home, &fs.current_dir));
 
+        let bashrc = fs.create_file(".bashrc", 10);
         let res = fs.change_dir(&bashrc.borrow().name);
         assert!(res.is_err());
         assert!(Rc::ptr_eq(&home, &fs.current_dir));

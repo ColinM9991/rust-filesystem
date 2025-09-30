@@ -37,4 +37,13 @@ impl Node {
     pub fn is_directory(&self) -> bool {
         matches!(self.node_type, NodeType::Directory { .. })
     }
+
+    pub fn get_size(&self) -> u64 {
+        match &self.node_type {
+            NodeType::Directory { children } => children
+                .iter()
+                .fold(0, |acc, x| acc + x.borrow().get_size()),
+            &NodeType::File { size } => size,
+        }
+    }
 }

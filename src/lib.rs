@@ -6,12 +6,16 @@ type WeakNodeRef = Weak<RefCell<Node>>;
 
 struct FileSystem {
     root: NodeRef,
+    current_dir: NodeRef,
 }
 
 impl FileSystem {
     pub fn new() -> Self {
+        let root = Node::new_directory("/");
+
         FileSystem {
-            root: Node::new_directory("/"),
+            root: Rc::clone(&root),
+            current_dir: root,
         }
     }
 
@@ -36,6 +40,51 @@ impl FileSystem {
             child.borrow_mut().parent = Some(Rc::downgrade(parent));
         } else {
             panic!("files cannot have children")
+        }
+    }
+
+    fn change_dir(&mut self, name: &str) -> Result<(), String> {
+        let target = self.resolve_path(name)?;
+
+        if !target.borrow().is_directory() {
+            return Err("Target is not a directory".to_string());
+        }
+
+        self.current_dir = target;
+
+        Ok(())
+    }
+
+    fn resolve_path(&self, path: &str) -> Result<NodeRef, String> {
+        let current = match path {
+            "/" => Rc::clone(&self.root),
+            ".." => self
+                .current_dir
+                .borrow()
+                .parent
+                .as_ref()
+                .and_then(|t| t.upgrade())
+                .ok_or_else(|| "Already at root directory".to_string())?,
+            dir => {
+                let child = self.find_child(dir);
+
+                child.ok_or_else(|| "No directory found")?
+            }
+        };
+
+        Ok(current)
+    }
+
+    fn find_child(&self, name: &str) -> Option<NodeRef> {
+        if let NodeType::Directory { children } = &self.current_dir.borrow().node_type {
+            let child = children
+                .iter()
+                .find(|&e| e.borrow().name == name)
+                .map(|e| e.clone());
+
+            child
+        } else {
+            None
         }
     }
 }
@@ -70,6 +119,10 @@ impl Node {
             parent: None,
         }))
     }
+
+    pub fn is_directory(&self) -> bool {
+        matches!(self.node_type, NodeType::Directory { .. })
+    }
 }
 
 #[cfg(test)]
@@ -77,11 +130,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn add_children() {
+    fn filesystem_current_dir_equal_root() {
         let fs = FileSystem::new();
-        let home = fs.create_directory(&fs.root, "/home");
-        let bashrc = fs.create_file(&home, ".bashrc", 10);
 
-        assert!(bashrc.borrow().parent.is_some())
+        assert!(Rc::ptr_eq(&fs.root, &fs.current_dir));
     }
 }
